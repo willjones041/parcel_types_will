@@ -1,5 +1,6 @@
 module parcel_container
     use datatypes, only : int64
+    use armanip, only : resize_array
     implicit none
 
     type scalar_ptr
@@ -38,12 +39,16 @@ module parcel_container
         type(vector_ptr), allocatable, dimension(:) :: vector_attribs
         character(len=16), allocatable, dimension(:) :: scalar_names !for reverse lookup
         character(len=16), allocatable, dimension(:) :: vector_names !for reverse lookup
+        character(len=16), allocatable, dimension(:) :: scalar_units !for reverse lookup
+        character(len=16), allocatable, dimension(:) :: vector_units !for reverse lookup
         integer :: n_scalars
         integer :: n_vectors
 
         contains
             procedure :: base_parcel_allocate
             procedure :: base_parcel_deallocate
+            procedure :: update_attr_num
+            procedure :: print_me
     end type
 
     type, extends(base_parcel_type) :: idealised_parcel_type ! add procedures
@@ -107,6 +112,39 @@ module parcel_container
 
 
        !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+
+        subroutine update_attr_num(this)
+            class(base_parcel_type), intent(inout), target :: this
+            integer :: j
+            this%attr_num = this%n_scalars
+
+
+            do j = 1, this%n_vectors
+                this%attr_num = this%attr_num + size(this%vector_attribs(j)%vptr, dim=1)
+            end do
+        end subroutine
+
+        subroutine print_me(this)
+            class(base_parcel_type), intent(inout), target :: this
+            integer :: j
+
+            do j = 1, this%n_scalars
+                write(*,*) this%scalar_names(j)
+                write(*,*) size(this%scalar_attribs(j)%sptr, dim=1)
+            end do
+
+
+            do j = 1, this%n_vectors
+                write(*,*) this%vector_names(j)
+                write(*,*) size(this%vector_attribs(j)%vptr, dim=1)
+                write(*,*) size(this%vector_attribs(j)%vptr, dim=2)
+            end do
+
+            write(*,*) "this%attr_num"
+            write(*,*) this%attr_num
+        end subroutine
+
 
         ! Allocate parcel memory
         ! ATTENTION: Extended types must allocate additional parcel attributes
@@ -259,6 +297,7 @@ module parcel_container
             allocate(this%volume(num))
             this%scalar_names(1) = 'volume'
             this%scalar_attribs(1)%sptr => this%volume
+            call this%update_attr_num
 
         end subroutine prec_sphere_parcel_allocate
 
@@ -285,6 +324,7 @@ module parcel_container
             this%scalar_attribs(1)%sptr => this%volume
             this%vector_names(1) = 'B'
             this%vector_attribs(1)%vptr => this%B
+            call this%update_attr_num
 
         end subroutine realistic_ellipsoid_parcel_allocate
 
@@ -312,6 +352,7 @@ module parcel_container
             this%scalar_attribs(1)%sptr => this%volume
             this%vector_names(1) = 'B'
             this%vector_attribs(1)%vptr => this%B
+            call this%update_attr_num
 
         end subroutine idealised_ellipsoid_parcel_allocate
 
