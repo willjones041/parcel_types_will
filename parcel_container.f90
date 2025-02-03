@@ -47,7 +47,7 @@ module parcel_container
             procedure :: delete       => parcel_delete
             procedure(parcel_alloc), deferred :: alloc
             procedure(parcel_dealloc), deferred :: dealloc
-            !procedure(parcel_resize), deferred :: resize
+            procedure(parcel_resize), deferred :: resize
             procedure :: print_me
             procedure :: set_dimension
             procedure :: register_attribute
@@ -69,7 +69,7 @@ module parcel_container
         contains
             procedure :: alloc => dynamic_parcel_alloc
             procedure :: dealloc => dynamic_parcel_dealloc
-            !procedure :: resize => dynamic_parcel_resize
+            procedure :: resize => dynamic_parcel_resize
 
     end type
 
@@ -83,7 +83,7 @@ module parcel_container
         contains
             procedure :: alloc => ellipsoid_parcel_alloc
             procedure :: dealloc => ellipsoid_parcel_dealloc
-            !procedure :: resize => ellipsoid_parcel_resize
+            procedure :: resize => ellipsoid_parcel_resize
 
             ! Other ellipsoid procedures to go here
     end type
@@ -95,7 +95,7 @@ module parcel_container
         contains
             procedure :: alloc => idealised_parcel_alloc
             procedure :: dealloc=> idealised_parcel_dealloc
-            !procedure :: resize => idealised_parcel_resize
+            procedure :: resize => idealised_parcel_resize
 
             ! get_buoyancy added here
     end type
@@ -111,7 +111,7 @@ module parcel_container
         contains
             procedure :: alloc => realistic_parcel_alloc
             procedure :: dealloc=> realistic_parcel_dealloc
-            !procedure :: resize => realistic_parcel_resize
+            procedure :: resize => realistic_parcel_resize
 
             ! get_buoyancy added here
     end type
@@ -124,7 +124,7 @@ module parcel_container
         contains
             procedure :: alloc => prec_parcel_alloc
             procedure :: dealloc=> prec_parcel_dealloc
-            !procedure :: resize => prec_parcel_resize
+            procedure :: resize => prec_parcel_resize
 
             ! get_buoyancy added here
     end type
@@ -141,9 +141,10 @@ module parcel_container
             class(base_parcel_type), intent(inout) :: this
         end subroutine parcel_dealloc
 
-        subroutine parcel_resize(this)
+        subroutine parcel_resize(this, new_size)
             import base_parcel_type
             class(base_parcel_type), intent(inout) :: this
+            integer,                 intent(in)    :: new_size
         end subroutine parcel_resize
 
     end interface
@@ -490,6 +491,40 @@ module parcel_container
 
         !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
+        subroutine dynamic_parcel_resize(this, new_size)
+            class(dynamic_parcel_type), intent(inout) :: this
+            integer,        intent(in)    :: new_size
+
+            call this%base_resize(new_size)
+
+            call resize_array(this%volume, new_size, this%local_num)
+            call resize_array(this%vorticity, new_size, this%local_num)
+            call resize_array(this%delta_vor, new_size, this%local_num)
+
+            call this%reset_attribute(this%volume, "volume")
+            if (this%n_pos == 2) then
+                call this%reset_attribute(this%vorticity(1, :), "z_vorticity")
+                call this%reset_attribute(this%delta_vor(1, :), "z_vorticity_rk_tendency")
+            elseif  (this%n_pos == 3) then
+                call this%reset_attribute(this%vorticity(1, :), "x_vorticity")
+                call this%reset_attribute(this%vorticity(2, :), "y_vorticity")
+                call this%reset_attribute(this%vorticity(3, :), "z_vorticity")
+                call this%reset_attribute(this%delta_vor(1, :), "x_vorticity_rk_tendency")
+                call this%reset_attribute(this%delta_vor(2, :), "y_vorticity_rk_tendency")
+                call this%reset_attribute(this%delta_vor(3, :), "z_vorticity_rk_tendency")
+            endif
+
+            if (this%has_labels) then
+                call resize_array(this%label, new_size, this%local_num)
+                call resize_array(this%dilution, new_size, this%local_num)
+                call this%reset_int_attribute(this%label, "label")
+                call this%reset_attribute(this%dilution, "dilution")
+            endif
+
+        end subroutine dynamic_parcel_resize
+
+        !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
         subroutine ellipsoid_parcel_alloc(this, num)
             class(ellipsoid_parcel_type), intent(inout) :: this
             integer,            intent(in)    :: num
@@ -541,6 +576,44 @@ module parcel_container
 
         !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
+        subroutine ellipsoid_parcel_resize(this, new_size)
+            class(ellipsoid_parcel_type), intent(inout) :: this
+            integer,        intent(in)    :: new_size
+
+            call this%dynamic_parcel_type%resize(new_size)
+
+            call resize_array(this%B, new_size, this%local_num)
+            call resize_array(this%delta_B, new_size, this%local_num)
+            call resize_array(this%strain, new_size, this%local_num)
+
+            if (this%shape_type == "ellipsoid5") then
+                call this%reset_attribute(this%B(1, :), "B11")
+                call this%reset_attribute(this%B(2, :), "B12")
+                call this%reset_attribute(this%B(3, :), "B13")
+                call this%reset_attribute(this%B(4, :), "B22")
+                call this%reset_attribute(this%B(5, :), "B23")
+                call this%reset_attribute(this%delta_B(1, :), "B11_rk_tendency")
+                call this%reset_attribute(this%delta_B(2, :), "B12_rk_tendency")
+                call this%reset_attribute(this%delta_B(3, :), "B13_rk_tendency")
+                call this%reset_attribute(this%delta_B(4, :), "B22_rk_tendency")
+                call this%reset_attribute(this%delta_B(5, :), "B23_rk_tendency")
+                call this%reset_attribute(this%strain(1, :), "DUDX")
+                call this%reset_attribute(this%strain(2, :), "DUDY")
+                call this%reset_attribute(this%strain(3, :), "DUDZ")
+                call this%reset_attribute(this%strain(4, :), "DVDX")
+                call this%reset_attribute(this%strain(5, :), "DVDY")
+                call this%reset_attribute(this%strain(6, :), "DVDZ")
+                call this%reset_attribute(this%strain(7, :), "DWDX")
+                call this%reset_attribute(this%strain(8, :), "DWDY")
+            else
+                print *, "Ellipsoid type not known."
+                stop
+            endif
+
+        end subroutine ellipsoid_parcel_resize
+
+        !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
         subroutine idealised_parcel_alloc(this, num)
             class(idealised_parcel_type), intent(inout) :: this
             integer,            intent(in)    :: num
@@ -565,6 +638,22 @@ module parcel_container
             call this%ellipsoid_parcel_type%dealloc
 
         end subroutine idealised_parcel_dealloc
+
+        !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+        subroutine idealised_parcel_resize(this, new_size)
+            class(idealised_parcel_type), intent(inout) :: this
+            integer,        intent(in)    :: new_size
+
+            call this%ellipsoid_parcel_type%resize(new_size)
+
+            call resize_array(this%humidity, new_size, this%local_num)
+            call resize_array(this%buoyancy, new_size, this%local_num)
+
+            call this%reset_attribute(this%humidity, "humidity")
+            call this%reset_attribute(this%buoyancy, "buoyancy")
+
+        end subroutine idealised_parcel_resize
 
         !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -605,6 +694,29 @@ module parcel_container
 
         !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
+        subroutine realistic_parcel_resize(this, new_size)
+            class(realistic_parcel_type), intent(inout) :: this
+            integer,        intent(in)    :: new_size
+
+            call this%ellipsoid_parcel_type%resize(new_size)
+
+            call resize_array(this%theta, new_size, this%local_num)
+            call resize_array(this%qv, new_size, this%local_num)
+            call resize_array(this%ql, new_size, this%local_num)
+
+            call this%reset_attribute(this%theta, "theta")
+            call this%reset_attribute(this%qv, "qv")
+            call this%reset_attribute(this%ql, "ql")
+
+            if(this%has_droplets) then
+                call resize_array(this%Nl, new_size, this%local_num)
+                call this%reset_attribute(this%Nl, "Nl")
+            endif
+
+        end subroutine realistic_parcel_resize
+
+        !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
         subroutine prec_parcel_alloc(this, num)
             class(prec_parcel_type), intent(inout) :: this
             integer,            intent(in)    :: num
@@ -633,6 +745,24 @@ module parcel_container
             call this%base_dealloc
 
         end subroutine prec_parcel_dealloc
+
+        !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+        subroutine prec_parcel_resize(this, new_size)
+            class(prec_parcel_type), intent(inout) :: this
+            integer,        intent(in)    :: new_size
+
+            call this%base_resize(new_size)
+
+            call resize_array(this%volume, new_size, this%local_num)
+            call resize_array(this%qr, new_size, this%local_num)
+            call resize_array(this%Nr, new_size, this%local_num)
+
+            call this%reset_attribute(this%volume, "volume")
+            call this%reset_attribute(this%qr, "qr")
+            call this%reset_attribute(this%Nr, "Nr")
+
+        end subroutine prec_parcel_resize
 
         !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
