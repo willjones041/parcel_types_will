@@ -1,5 +1,5 @@
 program test
-use parcel_container
+use parcel_types
 implicit none
 
     type(realistic_parcel_type) :: parcels
