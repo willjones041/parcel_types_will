@@ -834,8 +834,8 @@ module parcel_container
             integer                       :: n, i, j
 
             do n = 1, num
-                i = 1 + (n-1) * this%attr_num
-                j = n * this%attr_num
+                i = 1 + (n-1) * (this%attr_num+this%int_attr_num)
+                j = n * (this%attr_num+this%int_attr_num)
                 call this%serialize(pid(n), buffer(i:j))
             enddo
         end subroutine parcel_pack
@@ -849,8 +849,8 @@ module parcel_container
             integer                         :: n, i, j
 
             do n = 1, num
-                i = 1 + (n-1) * this%attr_num
-                j = n * this%attr_num
+                i = 1 + (n-1) * (this%attr_num+this%int_attr_num)
+                j = n * (this%attr_num+this%int_attr_num)
                 call this%deserialize(this%local_num + n, buffer(i:j))
             enddo
 
