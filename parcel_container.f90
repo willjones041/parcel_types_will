@@ -3,6 +3,8 @@ module parcel_container
     use armanip, only : resize_array
     implicit none
 
+    integer :: resize_timer
+
     type attr_ptr
         double precision, pointer :: aptr(:)
         character(len=32) :: name
@@ -33,8 +35,16 @@ module parcel_container
         contains
             procedure :: base_alloc   => base_parcel_alloc
             procedure :: base_dealloc => base_parcel_dealloc
+            !procedure :: base_resize  => base_parcel_resize
+            procedure :: serialize    => base_parcel_serialize
+            procedure :: deserialize  => base_parcel_deserialize
+            procedure :: replace      => base_parcel_replace
+            procedure :: pack         => parcel_pack
+            procedure :: unpack       => parcel_unpack
+            procedure :: delete       => parcel_delete
             procedure(parcel_alloc), deferred :: alloc
             procedure(parcel_dealloc), deferred :: dealloc
+            !procedure(parcel_resize), deferred :: resize
             procedure :: print_me
             procedure :: set_dimension
             procedure :: register_attribute
@@ -53,6 +63,7 @@ module parcel_container
         contains
             procedure :: alloc => dynamic_parcel_alloc
             procedure :: dealloc => dynamic_parcel_dealloc
+            !procedure :: resize => dynamic_parcel_resize
 
     end type
 
@@ -66,6 +77,8 @@ module parcel_container
         contains
             procedure :: alloc => ellipsoid_parcel_alloc
             procedure :: dealloc => ellipsoid_parcel_dealloc
+            !procedure :: resize => ellipsoid_parcel_resize
+
             ! Other ellipsoid procedures to go here
     end type
 
@@ -76,6 +89,8 @@ module parcel_container
         contains
             procedure :: alloc => idealised_parcel_alloc
             procedure :: dealloc=> idealised_parcel_dealloc
+            !procedure :: resize => idealised_parcel_resize
+
             ! get_buoyancy added here
     end type
 
@@ -90,6 +105,8 @@ module parcel_container
         contains
             procedure :: alloc => realistic_parcel_alloc
             procedure :: dealloc=> realistic_parcel_dealloc
+            !procedure :: resize => realistic_parcel_resize
+
             ! get_buoyancy added here
     end type
 
@@ -101,6 +118,8 @@ module parcel_container
         contains
             procedure :: alloc => prec_parcel_alloc
             procedure :: dealloc=> prec_parcel_dealloc
+            !procedure :: resize => prec_parcel_resize
+
             ! get_buoyancy added here
     end type
 
@@ -115,6 +134,11 @@ module parcel_container
             import base_parcel_type
             class(base_parcel_type), intent(inout) :: this
         end subroutine parcel_dealloc
+
+        subroutine parcel_resize(this)
+            import base_parcel_type
+            class(base_parcel_type), intent(inout) :: this
+        end subroutine parcel_resize
 
     end interface
 
@@ -142,7 +166,7 @@ module parcel_container
 
         end subroutine try_deallocate_vector
 
-       !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+        !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
         ! Allocate parcel memory
         ! ATTENTION: Extended types must allocate additional parcel attributes
@@ -234,13 +258,22 @@ module parcel_container
             character(len=*) :: name
             character(len=*) :: unit
             type(attr_ptr), allocatable, dimension(:) :: tmp
-            integer :: n_attr, n
+            integer :: n_attr, n, j
 
             attr=0.0 ! set to zero when registring, for safety
+
+            ! check if name is unique
+            do j = 1, this%attr_num
+                 if(trim(this%attrib(j)%name) == trim(name)) then
+                     print *, "Attribute name not unique"
+                     stop
+                 end if
+            end do
 
             this%attr_num = this%attr_num + 1
 
             n_attr = size(this%attrib)
+
 
             if (.not. allocated(this%attrib)) then
                 allocate(this%attrib(1))
@@ -276,9 +309,17 @@ module parcel_container
             character(len=*) :: name
             character(len=*) :: unit
             type(int_attr_ptr), allocatable, dimension(:) :: tmp
-            integer :: n_int_attr, n
+            integer :: n_int_attr, n, j
 
             int_attr=0 ! set to zero when registring, for safety
+
+            ! check if name is unique
+            do j = 1, this%int_attr_num
+                 if(trim(this%int_attrib(j)%name) == trim(name)) then
+                     print *, "Attribute name not unique"
+                     stop
+                 end if
+            end do
 
             this%int_attr_num = this%int_attr_num + 1
 
@@ -557,7 +598,126 @@ module parcel_container
 
    !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-        ! Deserialize parcel attributes into a single buffer
+        !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+        subroutine parcel_pack(this, pid, num, buffer)
+            class(base_parcel_type),   intent(in)  :: this
+            integer,          intent(in)  :: pid(:)
+            integer,          intent(in)  :: num
+            double precision, intent(out) :: buffer(:)
+            integer                       :: n, i, j
+
+            do n = 1, num
+                i = 1 + (n-1) * this%attr_num
+                j = n * this%attr_num
+                call this%serialize(pid(n), buffer(i:j))
+            enddo
+        end subroutine parcel_pack
+
+        !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+        subroutine parcel_unpack(this, num, buffer)
+            class(base_parcel_type),   intent(inout) :: this
+            integer,          intent(in)    :: num
+            double precision, intent(in)    :: buffer(:)
+            integer                         :: n, i, j
+
+            do n = 1, num
+                i = 1 + (n-1) * this%attr_num
+                j = n * this%attr_num
+                call this%deserialize(this%local_num + n, buffer(i:j))
+            enddo
+
+            this%local_num = this%local_num + num
+
+        end subroutine parcel_unpack
+
+        !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+        ! This algorithm replaces invalid parcels with valid parcels
+        ! from the end of the container
+        ! @param[in] pid are the parcel indices of the parcels to be deleted
+        ! @param[in] n_del is the array size of pid
+        ! @pre
+        !   - pid must be sorted in ascending order
+        !   - pid must be contiguously filled
+        !   The above preconditions must be fulfilled so that the
+        !   parcel pack algorithm works correctly.
+        subroutine parcel_delete(this, pid, n_del)
+            class(base_parcel_type), intent(inout) :: this
+            integer,        intent(in)    :: pid(0:)
+            integer,        intent(in)    :: n_del
+            integer                       :: k, l, m
+
+            ! l points always to the last valid parcel
+            l = this%local_num
+
+            ! k points always to last invalid parcel in pid
+            k = n_del
+
+            ! find last parcel which is not invalid
+            do while ((k > 0) .and. (l == pid(k)))
+                l = l - 1
+                k = k - 1
+            enddo
+
+            if (l == -1) then
+                print *, "in parcel_container::parcel_delete: more than all parcels are invalid."
+                stop
+            endif
+
+            ! replace invalid parcels with the last valid parcel
+            m = 1
+
+            do while (m <= k)
+                ! invalid parcel; overwrite *pid(m)* with last valid parcel *l*
+                call this%replace(pid(m), l)
+
+                l = l - 1
+
+                ! find next valid last parcel
+                do while ((k > 0) .and. (l == pid(k)))
+                    l = l - 1
+                    k = k - 1
+                enddo
+
+                ! next invalid
+                m = m + 1
+            enddo
+
+            ! update number of valid parcels
+            this%local_num = this%local_num - n_del
+
+        end subroutine parcel_delete
+
+        !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+        ! Overwrite parcel n with parcel m. This subroutine only replaces the
+        ! common types.
+        ! ATTENTION: Extended types must replace additional parcel attributes
+        !            in their own routine.
+        ! @param[in] n index of parcel to be replaced
+        ! @param[in] m index of parcel used to replace parcel at index n
+        ! @pre n and m must be valid parcel indices
+        subroutine base_parcel_replace(this, n, m)
+            class(base_parcel_type),   intent(inout)  :: this
+            integer, intent(in) :: n, m
+            integer :: j
+
+
+            do j = 1, this%attr_num
+                this%attrib(j)%aptr(n) = this%attrib(j)%aptr(m)
+            end do
+
+            do j = 1, this%int_attr_num
+                this%int_attrib(j)%aptr(n) = this%int_attrib(j)%aptr(m)
+            end do
+
+        end subroutine base_parcel_replace
+
+        !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+        ! Print parcel attributes
         subroutine print_me(this)
             class(base_parcel_type),   intent(inout)  :: this
             integer :: j
