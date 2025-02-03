@@ -3,6 +3,9 @@ module parcel_container
     use armanip, only : resize_array
     implicit none
 
+    ! TODO for EPIC implementation
+    ! Replace commands by MPI versions
+
     integer :: resize_timer
 
     type attr_ptr
@@ -35,7 +38,7 @@ module parcel_container
         contains
             procedure :: base_alloc   => base_parcel_alloc
             procedure :: base_dealloc => base_parcel_dealloc
-            !procedure :: base_resize  => base_parcel_resize
+            procedure :: base_resize  => base_parcel_resize
             procedure :: serialize    => base_parcel_serialize
             procedure :: deserialize  => base_parcel_deserialize
             procedure :: replace      => base_parcel_replace
@@ -49,6 +52,9 @@ module parcel_container
             procedure :: set_dimension
             procedure :: register_attribute
             procedure :: register_int_attribute
+            procedure :: reset_attribute
+            procedure :: reset_int_attribute
+
     end type
 
     ! This type is for parcels associated with dynamics (which will always have volume and voriticity in EPIC)
@@ -166,6 +172,7 @@ module parcel_container
 
         end subroutine try_deallocate_vector
 
+
         !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
         ! Allocate parcel memory
@@ -179,6 +186,7 @@ module parcel_container
             integer                       :: n
 
             this%max_num = num
+            this%local_num = num
             this%attr_num = 0
             this%int_attr_num = 0
 
@@ -189,12 +197,12 @@ module parcel_container
 
             dir = (/'x', 'y', 'z'/)
 
-            allocate(this%position(num, this%n_pos))
-            allocate(this%delta_pos(num, this%n_pos))
+            allocate(this%position(this%n_pos, num))
+            allocate(this%delta_pos(this%n_pos, num))
 
             do n = 1, this%n_pos
-                call this%register_attribute(this%position(:, n), dir(n) // "_position", "m")
-                call this%register_attribute(this%delta_pos(:, n), dir(n) // "_position_rk_tendency", "m/s")
+                call this%register_attribute(this%position(n, :), dir(n) // "_position", "m")
+                call this%register_attribute(this%delta_pos(n, :), dir(n) // "_position_rk_tendency", "m/s")
             enddo
 
         end subroutine base_parcel_alloc
@@ -229,6 +237,38 @@ module parcel_container
             endif
 
         end subroutine base_parcel_dealloc
+
+        !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+        subroutine base_parcel_resize(this, new_size)
+            class(base_parcel_type), intent(inout), target :: this
+            integer,        intent(in)    :: new_size
+            character(len=1)              :: dir(3)
+            integer                       :: n
+
+            if (new_size < this%local_num) then
+                print *, "in parcel_container::base_parcel_resize: losing parcels when resizing."
+                stop
+            endif
+
+            this%max_num = new_size
+
+            if (this%n_pos > 3) then
+                print *, "Only 3 dimensions allowed."
+                stop
+            endif
+
+            dir = (/'x', 'y', 'z'/)
+
+            call resize_array(this%position, new_size, this%local_num)
+            call resize_array(this%delta_pos, new_size, this%local_num)
+
+            do n = 1, this%n_pos
+                call this%reset_attribute(this%position(n, :), dir(n) // "_position")
+                call this%reset_attribute(this%delta_pos(n, :), dir(n) // "_position_rk_tendency")
+            enddo
+
+        end subroutine base_parcel_resize
 
         !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -303,6 +343,24 @@ module parcel_container
 
         !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
+        subroutine reset_attribute(this, attr, name)
+            class(base_parcel_type), intent(inout) :: this
+            double precision, dimension(:), target, intent(inout) :: attr
+            character(len=*) :: name
+            integer :: j
+
+             ! check if name is unique
+            do j = 1, this%attr_num
+                 if(trim(this%attrib(j)%name) == trim(name)) then
+                    this%attrib(j)%aptr => attr
+                    exit
+                 end if
+            end do
+
+        end subroutine reset_attribute
+
+        !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
         subroutine register_int_attribute(this, int_attr, name, unit)
             class(base_parcel_type), intent(inout) :: this
             integer(kind=8), dimension(:), target, intent(inout) :: int_attr
@@ -353,6 +411,24 @@ module parcel_container
 
         !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
+        subroutine reset_int_attribute(this, int_attr, name)
+            class(base_parcel_type), intent(inout) :: this
+            integer(kind=8), dimension(:), target, intent(inout) :: int_attr
+            character(len=*) :: name
+            integer :: j
+
+             ! check if name is unique
+            do j = 1, this%int_attr_num
+                 if(trim(this%int_attrib(j)%name) == trim(name)) then
+                     this%int_attrib(j)%aptr => int_attr
+                     exit
+                 end if
+            end do
+
+        end subroutine reset_int_attribute
+
+        !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
         subroutine dynamic_parcel_alloc(this, num)
             class(dynamic_parcel_type), intent(inout) :: this
             integer,            intent(in)    :: num
@@ -368,19 +444,19 @@ module parcel_container
             endif
 
             if (this%n_pos == 2) then
-                allocate(this%vorticity(num, 1))
-                call this%register_attribute(this%vorticity(:, 1), "z_vorticity", "1/s")
-                allocate(this%delta_vor(num, 1))
-                call this%register_attribute(this%delta_vor(:, 1), "z_vorticity_rk_tendency", "1/s")
+                allocate(this%vorticity(1, num))
+                call this%register_attribute(this%vorticity(1, :), "z_vorticity", "1/s")
+                allocate(this%delta_vor(1, num))
+                call this%register_attribute(this%delta_vor(1, :), "z_vorticity_rk_tendency", "1/s")
             elseif  (this%n_pos == 3) then
-                allocate(this%vorticity(num, 3))
-                call this%register_attribute(this%vorticity(:, 1), "x_vorticity", "1/s")
-                call this%register_attribute(this%vorticity(:, 2), "y_vorticity", "1/s")
-                call this%register_attribute(this%vorticity(:, 3), "z_vorticity", "1/s")
-                allocate(this%delta_vor(num, 3))
-                call this%register_attribute(this%delta_vor(:, 1), "x_vorticity_rk_tendency", "1/s")
-                call this%register_attribute(this%delta_vor(:, 2), "y_vorticity_rk_tendency", "1/s")
-                call this%register_attribute(this%delta_vor(:, 3), "z_vorticity_rk_tendency", "1/s")
+                allocate(this%vorticity(3, num))
+                call this%register_attribute(this%vorticity(1, :), "x_vorticity", "1/s")
+                call this%register_attribute(this%vorticity(2, :), "y_vorticity", "1/s")
+                call this%register_attribute(this%vorticity(3, :), "z_vorticity", "1/s")
+                allocate(this%delta_vor(3, num))
+                call this%register_attribute(this%delta_vor(1, :), "x_vorticity_rk_tendency", "1/s")
+                call this%register_attribute(this%delta_vor(2, :), "y_vorticity_rk_tendency", "1/s")
+                call this%register_attribute(this%delta_vor(3, :), "z_vorticity_rk_tendency", "1/s")
             endif
 
             if (this%has_labels) then
@@ -421,28 +497,28 @@ module parcel_container
             call this%dynamic_parcel_type%alloc(num)
 
             if (this%shape_type == "ellipsoid5") then
-                allocate(this%B(num, 5))
-                allocate(this%delta_B(num, 5))
-                allocate(this%strain(num, 8))
+                allocate(this%B(5, num))
+                allocate(this%delta_B(5, num))
+                allocate(this%strain(8, num))
 
-                call this%register_attribute(this%B(:, 1), "B11", "m^2")
-                call this%register_attribute(this%B(:, 2), "B12", "m^2")
-                call this%register_attribute(this%B(:, 3), "B13", "m^2")
-                call this%register_attribute(this%B(:, 4), "B22", "m^2")
-                call this%register_attribute(this%B(:, 5), "B23", "m^2")
-                call this%register_attribute(this%delta_B(:, 1), "B11_rk_tendency", "m^2/s")
-                call this%register_attribute(this%delta_B(:, 2), "B12_rk_tendency", "m^2/s")
-                call this%register_attribute(this%delta_B(:, 3), "B13_rk_tendency", "m^2/s")
-                call this%register_attribute(this%delta_B(:, 4), "B22_rk_tendency", "m^2/s")
-                call this%register_attribute(this%delta_B(:, 5), "B23_rk_tendency", "m^2/s")
-                call this%register_attribute(this%strain(:, 1), "DUDX", "1/s")
-                call this%register_attribute(this%strain(:, 2), "DUDY", "1/s")
-                call this%register_attribute(this%strain(:, 3), "DUDZ", "1/s")
-                call this%register_attribute(this%strain(:, 4), "DVDX", "1/s")
-                call this%register_attribute(this%strain(:, 5), "DVDY", "1/s")
-                call this%register_attribute(this%strain(:, 6), "DVDZ", "1/s")
-                call this%register_attribute(this%strain(:, 7), "DWDX", "1/s")
-                call this%register_attribute(this%strain(:, 8), "DWDY", "1/s")
+                call this%register_attribute(this%B(1, :), "B11", "m^2")
+                call this%register_attribute(this%B(2, :), "B12", "m^2")
+                call this%register_attribute(this%B(3, :), "B13", "m^2")
+                call this%register_attribute(this%B(4, :), "B22", "m^2")
+                call this%register_attribute(this%B(5, :), "B23", "m^2")
+                call this%register_attribute(this%delta_B(1, :), "B11_rk_tendency", "m^2/s")
+                call this%register_attribute(this%delta_B(2, :), "B12_rk_tendency", "m^2/s")
+                call this%register_attribute(this%delta_B(3, :), "B13_rk_tendency", "m^2/s")
+                call this%register_attribute(this%delta_B(4, :), "B22_rk_tendency", "m^2/s")
+                call this%register_attribute(this%delta_B(5, :), "B23_rk_tendency", "m^2/s")
+                call this%register_attribute(this%strain(1, :), "DUDX", "1/s")
+                call this%register_attribute(this%strain(2, :), "DUDY", "1/s")
+                call this%register_attribute(this%strain(3, :), "DUDZ", "1/s")
+                call this%register_attribute(this%strain(4, :), "DVDX", "1/s")
+                call this%register_attribute(this%strain(5, :), "DVDY", "1/s")
+                call this%register_attribute(this%strain(6, :), "DVDZ", "1/s")
+                call this%register_attribute(this%strain(7, :), "DWDX", "1/s")
+                call this%register_attribute(this%strain(8, :), "DWDY", "1/s")
             else
                 print *, "Ellipsoid type not known."
                 stop

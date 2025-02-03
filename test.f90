@@ -27,11 +27,14 @@ prec_parcels%volume=1.0
 prec_parcels%qr=2.0
 prec_parcels%Nr=3.0
 
+call parcels%base_resize(7)
+
 call parcels%print_me
 call prec_parcels%print_me
 
 call parcels%dealloc
 call prec_parcels%dealloc
+
 
 end program
 
