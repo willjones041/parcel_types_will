@@ -73,11 +73,11 @@
         subroutine ellipsoid_parcel_dealloc(this)
             class(ellipsoid_parcel_type), intent(inout) :: this
 
-            call try_deallocate_vector(this%B)
-            call try_deallocate_vector(this%delta_B)
-            call try_deallocate_vector(this%strain)
-            call try_deallocate_vector(this%Vetas)
-            call try_deallocate_vector(this%Vtaus)
+            call try_deallocate(this%B)
+            call try_deallocate(this%delta_B)
+            call try_deallocate(this%strain)
+            call try_deallocate(this%Vetas)
+            call try_deallocate(this%Vtaus)
 
             call this%dynamic_parcel_type%dealloc
 

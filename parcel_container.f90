@@ -97,13 +97,25 @@ module parcel_container
             integer,                 intent(in)    :: new_size
         end subroutine parcel_resize
 
+        logical pure function parcel_is_small(this, n)
+            import :: base_parcel_type
+            class(base_parcel_type), intent(in) :: this
+            integer,        intent(in) :: n
+        end function parcel_is_small
+
     end interface
+
+    interface try_deallocate
+        module procedure :: try_deallocate_1d
+        module procedure :: try_deallocate_1d_integer
+        module procedure :: try_deallocate_2d
+    end interface try_deallocate
 
     contains
 
         !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-        subroutine try_deallocate(in_array)
+        subroutine try_deallocate_1d(in_array)
             double precision, allocatable, dimension(:) :: in_array
 
             if (.not. allocated(in_array)) then
@@ -112,11 +124,24 @@ module parcel_container
                 deallocate(in_array)
             endif
 
-        end subroutine try_deallocate
+        end subroutine try_deallocate_1d
 
         !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-        subroutine try_deallocate_vector(in_array)
+        subroutine try_deallocate_1d_integer(in_array)
+            integer(kind=8), allocatable, dimension(:) :: in_array
+
+            if (.not. allocated(in_array)) then
+                return
+            else
+                deallocate(in_array)
+            endif
+
+        end subroutine try_deallocate_1d_integer
+
+        !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+        subroutine try_deallocate_2d(in_array)
             double precision, allocatable, dimension(:,:) :: in_array
 
             if (.not. allocated(in_array)) then
@@ -125,8 +150,7 @@ module parcel_container
                 deallocate(in_array)
             endif
 
-        end subroutine try_deallocate_vector
-
+        end subroutine try_deallocate_2d
 
         !::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -141,7 +165,7 @@ module parcel_container
             integer                       :: n
 
             this%max_num = num
-            this%local_num = num
+            this%local_num = num ! Usually this is done in parcel_init
             this%attr_num = 0
             this%int_attr_num = 0
 
@@ -176,8 +200,8 @@ module parcel_container
             this%attr_num   = 0
             this%int_attr_num   = 0
 
-            call try_deallocate_vector(this%position)
-            call try_deallocate_vector(this%delta_pos)
+            call try_deallocate(this%position)
+            call try_deallocate(this%delta_pos)
 
             if (.not. allocated(this%attrib)) then
                 return
@@ -429,16 +453,10 @@ module parcel_container
             class(dynamic_parcel_type), intent(inout) :: this
 
             call try_deallocate(this%volume)
-            call try_deallocate_vector(this%vorticity)
-            call try_deallocate_vector(this%delta_vor)
+            call try_deallocate(this%vorticity)
+            call try_deallocate(this%delta_vor)
             call try_deallocate(this%dilution)
-
-            if (.not. allocated(this%label)) then
-                return
-            else
-                deallocate(this%label)
-            endif
-
+            call try_deallocate(this%label)
             call this%base_dealloc
 
         end subroutine dynamic_parcel_dealloc
