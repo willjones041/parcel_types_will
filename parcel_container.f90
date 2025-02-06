@@ -118,9 +118,7 @@ module parcel_container
         subroutine try_deallocate_1d(in_array)
             double precision, allocatable, dimension(:) :: in_array
 
-            if (.not. allocated(in_array)) then
-                return
-            else
+            if (allocated(in_array)) then
                 deallocate(in_array)
             endif
 
@@ -131,9 +129,7 @@ module parcel_container
         subroutine try_deallocate_1d_integer(in_array)
             integer(kind=8), allocatable, dimension(:) :: in_array
 
-            if (.not. allocated(in_array)) then
-                return
-            else
+            if (allocated(in_array)) then
                 deallocate(in_array)
             endif
 
@@ -145,8 +141,6 @@ module parcel_container
             double precision, allocatable, dimension(:,:) :: in_array
 
             if (.not. allocated(in_array)) then
-                return
-            else
                 deallocate(in_array)
             endif
 
@@ -203,15 +197,11 @@ module parcel_container
             call try_deallocate(this%position)
             call try_deallocate(this%delta_pos)
 
-            if (.not. allocated(this%attrib)) then
-                return
-            else
+            if (allocated(this%attrib)) then
                 deallocate(this%attrib)
             endif
 
-            if (.not. allocated(this%int_attrib)) then
-                return
-            else
+            if (allocated(this%int_attrib)) then
                 deallocate(this%int_attrib)
             endif
 
@@ -289,6 +279,13 @@ module parcel_container
                  end if
             end do
 
+            do j = 1, this%int_attr_num
+                 if(trim(this%int_attrib(j)%name) == trim(name)) then
+                     print *, "Attribute name not unique"
+                     stop
+                 end if
+            end do
+
             this%attr_num = this%attr_num + 1
 
             n_attr = size(this%attrib)
@@ -327,14 +324,23 @@ module parcel_container
             double precision, dimension(:), target, intent(inout) :: attr
             character(len=*) :: name
             integer :: j
+            logical :: l_success
+
+            l_success= .false.
 
              ! check if name is unique
             do j = 1, this%attr_num
                  if(trim(this%attrib(j)%name) == trim(name)) then
                     this%attrib(j)%aptr => attr
+                    l_success=.true.
                     exit
                  end if
             end do
+
+            if(.not. l_success) then
+                print *, "Attribute not found."
+                stop
+            end if
 
         end subroutine reset_attribute
 
@@ -351,6 +357,13 @@ module parcel_container
             int_attr=0 ! set to zero when registring, for safety
 
             ! check if name is unique
+            do j = 1, this%attr_num
+                 if(trim(this%attrib(j)%name) == trim(name)) then
+                     print *, "Attribute name not unique"
+                     stop
+                 end if
+            end do
+
             do j = 1, this%int_attr_num
                  if(trim(this%int_attrib(j)%name) == trim(name)) then
                      print *, "Attribute name not unique"
@@ -395,14 +408,23 @@ module parcel_container
             integer(kind=8), dimension(:), target, intent(inout) :: int_attr
             character(len=*) :: name
             integer :: j
+            logical :: l_success
+
+            l_success= .false.
 
              ! check if name is unique
             do j = 1, this%int_attr_num
                  if(trim(this%int_attrib(j)%name) == trim(name)) then
                      this%int_attrib(j)%aptr => int_attr
+                     l_success=.true.
                      exit
                  end if
             end do
+
+            if(.not. l_success) then
+                print *, "Attribute not found."
+                stop
+            end if
 
         end subroutine reset_int_attribute
 
