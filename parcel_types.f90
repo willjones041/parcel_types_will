@@ -1,6 +1,7 @@
  module parcel_types
 
     use parcel_ellipsoid
+    use params
     implicit none
 
     type, extends(ellipsoid_parcel_type) :: idealised_parcel_type ! add procedures
@@ -39,7 +40,7 @@
             procedure :: alloc => prec_parcel_alloc
             procedure :: dealloc=> prec_parcel_dealloc
             procedure :: resize => prec_parcel_resize
-
+            procedure :: fall => prec_parcel_fall
             ! get_buoyancy added here
     end type
 
@@ -197,4 +198,18 @@
 
         end subroutine prec_parcel_resize
 
+    subroutine prec_parcel_fall(this,ro_air)
+
+        class(prec_parcel_type), intent(inout) :: this
+        double precision :: ro_air, D
+        integer :: i 
+        
+        do i = 1, size(this%delta_pos(3,:))
+            D = ((ro_air/ro_w)*(this%qr(i)/this%Nr(i)))
+            this%delta_pos(3,i) =  (a1*(D**(b1))*(e**(-f1*D)))+a2*(D**(b2))*(e**(-f2*D))*(ro_0/ro_air)**(0.5)
+        end do 
+
+    end subroutine
+
+    
 end module
