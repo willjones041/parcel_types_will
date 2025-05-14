@@ -2,6 +2,9 @@
 
     use parcel_ellipsoid
     use params
+    use constants
+    use grid_container, only: Grid
+    use utils
     implicit none
 
     type, extends(ellipsoid_parcel_type) :: idealised_parcel_type ! add procedures
@@ -40,7 +43,7 @@
             procedure :: alloc => prec_parcel_alloc
             procedure :: dealloc=> prec_parcel_dealloc
             procedure :: resize => prec_parcel_resize
-            procedure :: fall => prec_parcel_fall
+            procedure :: sedimentation
             ! get_buoyancy added here
     end type
 
@@ -198,18 +201,132 @@
 
         end subroutine prec_parcel_resize
 
-    subroutine prec_parcel_fall(this,ro_air)
+    subroutine sedimentation(this,mesh)
 
         class(prec_parcel_type), intent(inout) :: this
-        double precision :: ro_air, D
-        integer :: i 
-        
-        do i = 1, size(this%delta_pos(3,:))
-            D = ((ro_air/ro_w)*(this%qr(i)/this%Nr(i)))
-            this%delta_pos(3,i) =  (a1*(D**(b1))*(e**(-f1*D)))+a2*(D**(b2))*(e**(-f2*D))*(ro_0/ro_air)**(0.5)
-        end do 
+        class(Grid), intent(in) :: mesh
+        double precision :: D, press, exn,theta, qv, vtemp, ro_air, term_vel
+        integer :: n, is, js, ks 
+        double precision,dimension(0:1, 0:1, 0:1) :: weights, theta_subarray,qv_subarray
 
-    end subroutine
+
+
+
+            parcel_loop: do n = 1, this%local_num
+
+                !Here I believe we will call trilinear and par2grid to get 
+                !the theta and qv values we need to make the parcel fall
+                !This Could be wrapped up in grid2par
+                call trilinear(pos=this%position(3,n),ii=is,jj=js,kk=ks,ww=weights)
+                call mesh%get_attribs(ii=is,jj=js,kk=ks,thetag_val=theta_subarray,qvg_val=qv_subarray)
+                
+                !assigning atmospheric variables on the fly
+                theta = sum(theta_subarray*weights)
+                qv = sum(qv_subarray*weights)
+                press=surf_press*exp(-this%position(3, n)/pressure_scale_height)
+                exn=(press/ref_press)**(r_d/c_p)
+                vtemp=theta*exn*(1+0.61*qv)
+                ro_air = press/(r_d*vtemp)
+
+
+                D = ((ro_air/ro_w)*(this%qr(n)/this%Nr(n)))
+                term_vel =  (a1*(D**(b1))*(exp(-f1*D)))+a2*(D**(b2)) &
+                &* (exp(-f2*D))*(ro_0/ro_air)**(0.5)
+                
+            
+                 
+
+
+
+
+                D = 0.0
+                press = 0.0
+                exn = 0.0
+                theta = 0.0
+                qv = 0.0
+                vtemp = 0.0
+                ro_air = 0.0
+
+
+
+
+            end do parcel_loop
+
+    end subroutine sedimentation
+
+    subroutine evaporation(this,mesh)
+        class(prec_parcel_type), intent(inout) :: this
+        class(Grid), intent(in) :: mesh
+        
+        double precision :: press, exn,theta, qv, vtemp, ro_air, shape, slope, vent_r,abliq,ws,prevp,nrevp
+        integer :: n, is, js, ks 
+        double precision,dimension(0:1, 0:1, 0:1) :: weights, theta_subarray,qv_subarray
+
+
+
+        parcel_loop: do n =1, this%local_num
+                        
+                !Here I believe we will call trilinear and par2grid to get 
+                !the theta and qv values we need to make the parcel fall
+                !This Could be wrapped up in grid2par
+                call trilinear(pos=this%position(3,n),ii=is,jj=js,kk=ks,ww=weights)
+                call mesh%get_attribs(ii=is,jj=js,kk=ks,thetag_val=theta_subarray,qvg_val=qv_subarray)
+        
+                !assigning atmospheric variables on the fly
+                theta = sum(theta_subarray*weights)
+                qv = sum(qv_subarray*weights)
+                press=surf_press*exp(-this%position(3, n)/pressure_scale_height)
+                exn=(press/ref_press)**(r_d/c_p)
+                vtemp=theta*exn*(1+0.61*qv)
+                ro_air = press/(r_d*vtemp)
+                ws = 3.8/(press*e**(-17.2693882*(vtemp-273.15)/(vtemp-35.86))-6.109)
+        
+                !Calculating slope coefficient 
+                slope = ((pi/6)*(ro_r/ro_air)*(this%nr(n)/this%qr(n))*(shape+1)*(shape+2)*(shape+3))**((f13))
+
+                !Ventilation coefficient
+                
+                vent_r = two*pi*(this%nr(n))*ro_air* &
+                    (0.78*((one+shape)/(slope)) &
+                    +  0.31*((a1*ro_air/visc)**(f12))*(Sc**(f13))*((ro_0/ro_air)**(f14))  &
+                    * (gamma((f12*b1 +shape +f52))/gamma((1+shape))) &
+                    *((one + (f12*f1)/slope)**(-(f12*b1 + shape + f52))) &
+                    *((slope)**(-f12*b1 -f32)))
+
+                !Thermodynamic coefficient
+                abliq = ((l_v**2)/(k_a*r_v* (vtemp**2))) + (1/(ro_air*ws*diffus))
+                
+                !Sink term for rainwater mass mixing ratio due to evaporation
+                prevp = (((qv/ws)-1)/(ro_air*ABliq))*vent_r
+                !Sink term for rainwater number concentration due to evaporation
+                nrevp = prevp*(((this%nr(n))/ro_air)/(this%qr(n)))
+        
+        end do parcel_loop 
 
     
+    end subroutine evaporation
+    
+    
+
+
+
+
+
+    ! subroutine grid2par(this,mesh)
+    !     class(prec_parcel_type), intent(inout) :: this
+    !     class(Grid), intent(in) :: mesh
+    !     double precision :: weights(0:1,0:1,0:1)
+    !     integer :: n
+    !     integer :: is, js, ks
+    !     double precision, intent(out),dimension(:,:,:) :: thetag_val, qvg_val
+    !     call trilinear(pos=this%position(:,n),ii=is,jj=js,kk=ks,ww=weights)
+
+    !     this%theta(n) = this%theta(n) + weights*mesh%get_attribs(ii=is,jj=js,kk=ks,thetag_val=theta_g,qvg_val=qv_g)
+
+
+
+
+
+
+    ! end subroutine grid2par
 end module

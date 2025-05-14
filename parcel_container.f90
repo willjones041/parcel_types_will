@@ -8,6 +8,9 @@ module parcel_container
 
     integer :: resize_timer
 
+    !!It looks like a pointer is initialised with metadata
+    !!to represent any goven attribute held by 
+    !!a future child of the base_parcel_type
     type attr_ptr
         double precision, pointer :: aptr(:)
         character(len=32) :: name
@@ -79,7 +82,9 @@ module parcel_container
 
     end type
 
-    interface
+    !This is sets the rules for these subroutines, what their arguments are, 
+    ! What the types of their variables are and their intents
+    abstract interface
         subroutine parcel_alloc(this, num)
             import base_parcel_type
             class(base_parcel_type), intent(inout) :: this

@@ -1,9 +1,18 @@
 program test
 use parcel_types
+use grid_container
 implicit none
-
+    type(Grid) :: testgrid
     type(realistic_parcel_type) :: parcels
     type(prec_parcel_type) :: prec_parcels
+    integer :: i
+    double precision :: ro_air
+
+
+
+call testgrid%alloc()
+call testgrid%fill()
+
 
 call parcels%set_dimension(3)
 parcels%has_droplets=.true.
@@ -24,20 +33,39 @@ parcels%Nl=0.0
 parcels%label=0
 
 prec_parcels%volume=1.0
-prec_parcels%qr=2.0
-prec_parcels%Nr=3.0
 
-call parcels%print_me
-call prec_parcels%print_me
+
+! call parcels%print_me
+! call prec_parcels%print_me
 
 call parcels%resize(7)
 call prec_parcels%resize(7)
 
-call parcels%print_me
-call prec_parcels%print_me
+do  i = 1, size(prec_parcels%qr)
 
-call parcels%dealloc
+    prec_parcels%qr(i)=i
+    prec_parcels%Nr(i)=i*2
+end do
+! call parcels%print_me
+! call prec_parcels%print_me
+
+!I have set up a use case of updating the z_position deltas 
+!based off the terminal velocity equation
+
+ro_air = 1.11
+!Testing the fall subroutine
+call prec_parcels%fall(ro_air)
+
+! do i = 1, size(prec_parcels%delta_pos(3,:))
+!     print *, prec_parcels%delta_pos(3,i)
+! end do
+
+!call prec_parcels%print_me
+
+!call parcels%dealloc
 call prec_parcels%dealloc
+
+
 
 
 end program
