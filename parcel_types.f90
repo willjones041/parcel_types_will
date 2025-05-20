@@ -239,17 +239,17 @@
                 !This Could be wrapped up in grid2par
 
             !! ----------------------grid2par---------------------------
-                call trilinear(pos=this%position(3,n),ii=is,jj=js,kk=ks,ww=weights)
+                call trilinear(pos=this%position(1,n),ii=is,jj=js,kk=ks,ww=weights)
                 call mesh%get_attribs(ii=is,jj=js,kk=ks,thetag_val=theta_subarray,qvg_val=qv_subarray)
                 !assigning atmospheric variables on the fly
                 theta = sum(theta_subarray*weights)
                 qv = sum(qv_subarray*weights)
-                press=surf_press*exp(-this%position(3, n)/pressure_scale_height)
+                press=surf_press*exp(-this%position(1, n)/pressure_scale_height)
                 exn=(press/ref_press)**(r_d/c_p)
                 vtemp=theta*exn*(1+0.61*qv)
                 ro_air = press/(r_d*vtemp)
                 !! ----------------------------------------------------
-
+                print * ,"LOOK HERE:", this%position(1,n)
                 !! Approximate diameter scaling from Rooney 2025
                 D = ((ro_air/ro_w)*(this%qr(n)/this%nr(n)))**(f13)
 
@@ -288,13 +288,13 @@
                 !Here I believe we will call trilinear and par2grid to get 
                 !the theta and qv values we need to make the parcel fall
                 !This Could be wrapped up in grid2par
-                call trilinear(pos=this%position(3,n),ii=is,jj=js,kk=ks,ww=weights)
+                call trilinear(pos=this%position(1,n),ii=is,jj=js,kk=ks,ww=weights)
                 call mesh%get_attribs(ii=is,jj=js,kk=ks,thetag_val=theta_subarray,qvg_val=qv_subarray)
         
                 !assigning atmospheric variables on the fly
                 theta = sum(theta_subarray*weights)
                 qv = sum(qv_subarray*weights)
-                press=surf_press*exp(-this%position(3, n)/pressure_scale_height)
+                press=surf_press*exp(-this%position(1, n)/pressure_scale_height)
                 exn=(press/ref_press)**(r_d/c_p)
                 vtemp=theta*exn*(1+0.61*qv)
                 ro_air = press/(r_d*vtemp)

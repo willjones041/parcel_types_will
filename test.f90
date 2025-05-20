@@ -7,14 +7,14 @@ implicit none
 
         type(prec_parcel_type) :: prec_parcels
         type(Grid) :: testgrid
-
+        logical :: leave_time
         double precision, allocatable, dimension(:,:,:) :: theta_init, qv_init
-        double precision :: RH = 0.8
+       ! double precision :: RH = 0.8
         integer :: i, j, k, tlim, t, delt, n
-        
+        leave_time = .false.
         t = 0
         delt = 1.0
-        tlim = 10
+        tlim = 1000
 
         
 
@@ -28,7 +28,8 @@ implicit none
         do k = 1,nz
             do j = 1,ny
                 do i = 1,nx
-                    qv_init(i,j,k) = RH * exp(17.27 * (theta_init(i,j,k) - 273.15) / (theta_init(i,j,k) - 35.86))
+                    !Need to initiate a realistic humidity profile here
+                    qv_init = 0.03
                 end do
             end do
         end do
@@ -59,15 +60,24 @@ implicit none
             parcel_loop: do n =1, prec_parcels%local_num
             
             
-            prec_parcels%position(1,n) = prec_parcels%position(1,n) + prec_parcels%vterm(n) * delt
+            prec_parcels%position(1,n) = prec_parcels%position(1,n) - prec_parcels%vterm(n) * delt
             prec_parcels%qr(n) = prec_parcels%qr(n) + prec_parcels%prevp(n) * delt
             prec_parcels%nr(n) = prec_parcels%nr(n) + prec_parcels%nrevp(n) * delt
             
-            
-            end do parcel_loop
             print *, "time = ",t,"position =", prec_parcels%position(1,1), "Nr =", prec_parcels%nr(n), "qr =", prec_parcels%qr(n), &
             "vterm =", prec_parcels%vterm(n), "prevp =", prec_parcels%prevp(n), "nrevp =", prec_parcels%nrevp(n)
             
+            !Short term solution before I write the impingement scheme
+            if (prec_parcels%position(1,n) <=0) then 
+                print *, "Ping!"
+                leave_time = .true.
+            end if
+            end do parcel_loop
+            
+           
+            if (leave_time .eqv. .true.) then 
+                exit
+            end if 
             t = t+delt
         end do 
 

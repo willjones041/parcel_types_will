@@ -26,10 +26,10 @@ contains
         !!Here is where the user input is taken to allocate the fields
         ! and initialise the fixed parameters
             class(Grid), intent(inout) :: this
-            this%dx = extent/dble([nx,ny,nz])
+            this%dx = extent/dble([nz,ny,nx])
             
-            allocate(this%qv(nx,ny,nz))
-            allocate(this%theta(nx,ny,nz))
+            allocate(this%qv(nz,ny,nx))
+            allocate(this%theta(nz,ny,nz))
 
         end subroutine prec_grid_alloc
 
