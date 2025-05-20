@@ -5,10 +5,10 @@ module params
     ! Parameters
     !Abel and shipway fall speed constants
     double precision, parameter :: a1 = 4854.0
-    double precision, parameter :: a2 = -446.0
+    double precision, parameter :: a2 = 446.0
     double precision, parameter :: b1 = 1.0
     double precision, parameter :: b2 = 0.782
-    double precision, parameter :: f1 = 0
+    double precision, parameter :: f1 = 195
     double precision, parameter :: f2 = 4085.35
     !Euler's number
     double precision, parameter :: e = 2.718281828459045
@@ -17,13 +17,13 @@ module params
     !Density of liquid water
     double precision, parameter :: ro_w = 1000
     
-!Grid inputs to find dx and 
+    !Grid inputs to find dx and 
     double precision,  parameter ::lower(3) = [0,0,0]
     double precision,   parameter :: extent(3) = [100,100,100]
     integer, parameter :: nx = 10, ny =10, nz=10
     double precision,   parameter:: dx(3) = extent/dble((/nx,ny,nz/))
     double precision, parameter :: dxi(3) = one/dx
-!Parameters for the atmosphere
+    !Parameters for the atmosphere
     double precision, parameter :: pressure_scale_height = 8619 !From Bomex, please change (placeholder)
     double precision, parameter :: surf_press = 100000
     double precision, parameter :: ref_press = 100000

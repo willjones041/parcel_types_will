@@ -38,12 +38,17 @@
         double precision, allocatable, dimension(:) :: volume
         double precision, allocatable, dimension(:) :: qr
         double precision, allocatable, dimension(:) :: Nr ! droplet number
+        double precision, allocatable, dimension(:) :: vterm
+        double precision, allocatable, dimension(:) :: prevp
+        double precision, allocatable, dimension(:) :: nrevp
+
 
         contains
             procedure :: alloc => prec_parcel_alloc
             procedure :: dealloc=> prec_parcel_dealloc
             procedure :: resize => prec_parcel_resize
             procedure :: sedimentation
+            procedure ::  evaporation
             ! get_buoyancy added here
     end type
 
@@ -162,11 +167,17 @@
 
             allocate(this%volume(num))
             allocate(this%qr(num))
-            allocate(this%Nr(num))
+            allocate(this%nr(num))
+            allocate(this%vterm(num))
+            allocate(this%prevp(num))
+            allocate(this%nrevp(num))            
 
             call this%register_attribute(this%volume, "volume", "m^3")
             call this%register_attribute(this%qr, "qr", "kg/kg")
-            call this%register_attribute(this%Nr, "Nr", "/m^3")
+            call this%register_attribute(this%nr, "nr", "/m^3")
+            call this%register_attribute(this%vterm, "vterm", "ms^-1")
+            call this%register_attribute(this%prevp, "prevp", "kg/kg")
+            call this%register_attribute(this%nrevp, "nrevp", "/m^3")
 
         end subroutine prec_parcel_alloc
 
@@ -177,7 +188,11 @@
 
             call try_deallocate(this%volume)
             call try_deallocate(this%qr)
-            call try_deallocate(this%Nr)
+            call try_deallocate(this%nr)
+            call try_deallocate(this%vterm)
+            call try_deallocate(this%prevp)
+            call try_deallocate(this%nrevp)
+
 
             call this%base_dealloc
 
@@ -193,33 +208,39 @@
 
             call resize_array(this%volume, new_size, this%local_num)
             call resize_array(this%qr, new_size, this%local_num)
-            call resize_array(this%Nr, new_size, this%local_num)
+            call resize_array(this%nr, new_size, this%local_num)
+            call resize_array(this%vterm, new_size, this%local_num)
+            call resize_array(this%prevp, new_size, this%local_num)
+            call resize_array(this%nrevp, new_size, this%local_num)
 
             call this%reset_attribute(this%volume, "volume")
             call this%reset_attribute(this%qr, "qr")
-            call this%reset_attribute(this%Nr, "Nr")
+            call this%reset_attribute(this%nr, "nr")
+            call this%reset_attribute(this%vterm, "vterm")
+            call this%reset_attribute(this%prevp, "prevp")
+            call this%reset_attribute(this%nrevp, "nrevp")
+           
 
         end subroutine prec_parcel_resize
+
 
     subroutine sedimentation(this,mesh)
 
         class(prec_parcel_type), intent(inout) :: this
         class(Grid), intent(in) :: mesh
-        double precision :: D, press, exn,theta, qv, vtemp, ro_air, term_vel
+        double precision :: D, press, exn,theta, qv, vtemp, ro_air
         integer :: n, is, js, ks 
         double precision,dimension(0:1, 0:1, 0:1) :: weights, theta_subarray,qv_subarray
-
-
-
 
             parcel_loop: do n = 1, this%local_num
 
                 !Here I believe we will call trilinear and par2grid to get 
                 !the theta and qv values we need to make the parcel fall
                 !This Could be wrapped up in grid2par
+
+            !! ----------------------grid2par---------------------------
                 call trilinear(pos=this%position(3,n),ii=is,jj=js,kk=ks,ww=weights)
                 call mesh%get_attribs(ii=is,jj=js,kk=ks,thetag_val=theta_subarray,qvg_val=qv_subarray)
-                
                 !assigning atmospheric variables on the fly
                 theta = sum(theta_subarray*weights)
                 qv = sum(qv_subarray*weights)
@@ -227,18 +248,17 @@
                 exn=(press/ref_press)**(r_d/c_p)
                 vtemp=theta*exn*(1+0.61*qv)
                 ro_air = press/(r_d*vtemp)
+                !! ----------------------------------------------------
 
+                !! Approximate diameter scaling from Rooney 2025
+                D = ((ro_air/ro_w)*(this%qr(n)/this%nr(n)))**(f13)
 
-                D = ((ro_air/ro_w)*(this%qr(n)/this%Nr(n)))
-                term_vel =  (a1*(D**(b1))*(exp(-f1*D)))+a2*(D**(b2)) &
-                &* (exp(-f2*D))*(ro_0/ro_air)**(0.5)
-                
-            
-                 
-
-
-
-
+               
+                this%vterm(n) =  (a1*(D**(b1))*(exp(-f1*D)))+a2*(D**(b2)) &
+                &* (exp(-f2*D))*(ro_0/ro_air)**(f12)
+               
+             
+              
                 D = 0.0
                 press = 0.0
                 exn = 0.0
@@ -257,8 +277,7 @@
     subroutine evaporation(this,mesh)
         class(prec_parcel_type), intent(inout) :: this
         class(Grid), intent(in) :: mesh
-        
-        double precision :: press, exn,theta, qv, vtemp, ro_air, shape, slope, vent_r,abliq,ws,prevp,nrevp
+        double precision :: press, exn,theta, qv, vtemp, ro_air, shape, slope, vent_r,abliq,ws
         integer :: n, is, js, ks 
         double precision,dimension(0:1, 0:1, 0:1) :: weights, theta_subarray,qv_subarray
 
@@ -297,36 +316,28 @@
                 abliq = ((l_v**2)/(k_a*r_v* (vtemp**2))) + (1/(ro_air*ws*diffus))
                 
                 !Sink term for rainwater mass mixing ratio due to evaporation
-                prevp = (((qv/ws)-1)/(ro_air*ABliq))*vent_r
+                this%prevp(n) = (((qv/ws)-1)/(ro_air*ABliq))*vent_r
                 !Sink term for rainwater number concentration due to evaporation
-                nrevp = prevp*(((this%nr(n))/ro_air)/(this%qr(n)))
-        
+                this%nrevp(n) = this%prevp(n)*(((this%nr(n))/ro_air)/(this%qr(n)))
+                !!DEBUG STEP
+print *, "n = ", n
+print *, "prevp(n) = ", this%prevp(n)
+print *, "nrevp(n) = ", this%nrevp(n)
+print *, "nr(n) = ", this%nr(n)
+print *, "qr(n) = ", this%qr(n)
+print *, "ro_air = ", ro_air
+print *, "vent_r = ", vent_r
+print *, "ABliq = ", ABliq
+print *, "theta = ", theta
+print *, "qv = ", qv
+print *, "press = ", press
+print *, "vtemp = ", vtemp
+print *, "ws = ", ws
+print *, "exner func =", exn
         end do parcel_loop 
 
     
     end subroutine evaporation
     
-    
 
-
-
-
-
-    ! subroutine grid2par(this,mesh)
-    !     class(prec_parcel_type), intent(inout) :: this
-    !     class(Grid), intent(in) :: mesh
-    !     double precision :: weights(0:1,0:1,0:1)
-    !     integer :: n
-    !     integer :: is, js, ks
-    !     double precision, intent(out),dimension(:,:,:) :: thetag_val, qvg_val
-    !     call trilinear(pos=this%position(:,n),ii=is,jj=js,kk=ks,ww=weights)
-
-    !     this%theta(n) = this%theta(n) + weights*mesh%get_attribs(ii=is,jj=js,kk=ks,thetag_val=theta_g,qvg_val=qv_g)
-
-
-
-
-
-
-    ! end subroutine grid2par
 end module

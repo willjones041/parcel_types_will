@@ -15,9 +15,9 @@ module grid_container
         double precision, allocatable, dimension(:,:,:) :: theta
         contains
             procedure :: alloc => prec_grid_alloc
-            procedure :: fill => fill_grid
+            procedure :: set_fields => set_prec_fields
             procedure :: print_me => print_me_grid
-            procedure :: get_attribs
+            procedure :: get_attribs => get_prec_attribs
        end type Grid
     
 contains
@@ -33,32 +33,34 @@ contains
 
         end subroutine prec_grid_alloc
 
-        subroutine fill_grid(this)
-            !This is a placeholder subroutine that allows me to fill
-            ! the grid without needing a netcdf4 file
-            !REPLACE WITH READ NETCDF SUBROUTINE
+        subroutine set_prec_fields(this, theta_val, qv_val)
+            !! Set the values of theta and qv fields
             class(Grid), intent(inout) :: this
-            integer :: i,j,k
-
-            zloop: do k = 1, nx
-                yloop: do j = 1, ny
-                    xloop: do i = 1, nz
-                    !Setting the isothermal case up first
-                                this%theta(k,j,i) = 300
-                                this%qv(k,j,i) = 0.001
-                        end do xloop
-                    end do yloop
-                end do zloop
-        end subroutine
+            double precision, intent(in), dimension(:,:,:) :: theta_val, qv_val
+    
+            if (size(theta_val) /= size(this%theta)) then
+                print*, "Error: theta_val size does not match grid dimensions"
+                stop
+            end if
+    
+            if (size(qv_val) /= size(this%qv)) then
+                print*, "Error: qv_val size does not match grid dimensions"
+                stop
+            end if
+    
+            this%theta = theta_val
+            this%qv = qv_val
+        end subroutine set_prec_fields
 
         subroutine print_me_grid(this)
         !! This subroutine prints the gridded values 
         !! So I can check them
             class(Grid),intent(in) :: this
             print*, this%theta
+            print*, this%qv
         end subroutine 
 
-        subroutine get_attribs(this,ii,jj,kk,thetag_val,qvg_val) 
+        subroutine get_prec_attribs(this,ii,jj,kk,thetag_val,qvg_val) 
             !!This is the getter function for theta and qv
             !! It takes in the indexes of the grid box and outputs the values for each
             class(Grid), intent(in) :: this
@@ -67,7 +69,7 @@ contains
 
             thetag_val = this%theta(kk:kk+1,jj:jj+1,ii:ii+1)
             qvg_val = this%qv(kk:kk+1,jj:jj+1,ii:ii+1)
-        end subroutine get_attribs
+        end subroutine get_prec_attribs
 
 
 end module grid_container
