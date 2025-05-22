@@ -241,15 +241,17 @@
             !! ----------------------grid2par---------------------------
                 call trilinear(pos=this%position(1,n),ii=is,jj=js,kk=ks,ww=weights)
                 call mesh%get_attribs(ii=is,jj=js,kk=ks,thetag_val=theta_subarray,qvg_val=qv_subarray)
+                
                 !assigning atmospheric variables on the fly
                 theta = sum(theta_subarray*weights)
+                
                 qv = sum(qv_subarray*weights)
                 press=surf_press*exp(-this%position(1, n)/pressure_scale_height)
                 exn=(press/ref_press)**(r_d/c_p)
                 vtemp=theta*exn*(1+0.61*qv)
                 ro_air = press/(r_d*vtemp)
                 !! ----------------------------------------------------
-                print * ,"LOOK HERE:", this%position(1,n)
+                
                 !! Approximate diameter scaling from Rooney 2025
                 D = ((ro_air/ro_w)*(this%qr(n)/this%nr(n)))**(f13)
 
@@ -258,7 +260,7 @@
                 &* (exp(-f2*D))*(ro_0/ro_air)**(f12)
                
              
-              
+                
                 D = 0.0
                 press = 0.0
                 exn = 0.0
@@ -296,6 +298,7 @@
                 qv = sum(qv_subarray*weights)
                 press=surf_press*exp(-this%position(1, n)/pressure_scale_height)
                 exn=(press/ref_press)**(r_d/c_p)
+                
                 vtemp=theta*exn*(1+0.61*qv)
                 ro_air = press/(r_d*vtemp)
                 ws = 3.8/(press*e**(-17.2693882*(vtemp-273.15)/(vtemp-35.86))-6.109)
@@ -319,21 +322,24 @@
                 this%prevp(n) = (((qv/ws)-1)/(ro_air*ABliq))*vent_r
                 !Sink term for rainwater number concentration due to evaporation
                 this%nrevp(n) = this%prevp(n)*(((this%nr(n))/ro_air)/(this%qr(n)))
+                
                 !!DEBUG STEP
-print *, "n = ", n
-print *, "prevp(n) = ", this%prevp(n)
-print *, "nrevp(n) = ", this%nrevp(n)
-print *, "nr(n) = ", this%nr(n)
-print *, "qr(n) = ", this%qr(n)
-print *, "ro_air = ", ro_air
-print *, "vent_r = ", vent_r
-print *, "ABliq = ", ABliq
-print *, "theta = ", theta
-print *, "qv = ", qv
-print *, "press = ", press
-print *, "vtemp = ", vtemp
-print *, "ws = ", ws
-print *, "exner func =", exn
+!                 print *, "n = ", n
+! print *, "prevp(n) = ", this%prevp(n)
+! print *, "nrevp(n) = ", this%nrevp(n)
+! print *, "nr(n) = ", this%nr(n)
+! print *, "qr(n) = ", this%qr(n)
+! print *, "ro_air = ", ro_air
+! print *, "vent_r = ", vent_r
+! print *, "ABliq = ", ABliq
+! print *, "theta = ", theta
+! print *, "qv = ", qv
+! print *, "press = ", press
+! print *, "vtemp = ", vtemp
+! print *, "ws = ", ws
+! print *, "exner func =", exn
+                
+
         end do parcel_loop 
 
     

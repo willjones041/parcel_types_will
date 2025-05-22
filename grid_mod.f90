@@ -56,8 +56,8 @@ contains
         !! This subroutine prints the gridded values 
         !! So I can check them
             class(Grid),intent(in) :: this
-            print*, this%theta
-            print*, this%qv
+            print*, this%theta(1,:,:)
+            print*, this%qv(1,:,:)
         end subroutine 
 
         subroutine get_prec_attribs(this,ii,jj,kk,thetag_val,qvg_val) 
@@ -67,8 +67,9 @@ contains
             double precision, intent(out),dimension(:,:,:) :: thetag_val, qvg_val
             integer, intent(in) :: ii,jj,kk
 
-            thetag_val = this%theta(kk:kk+1,jj:jj+1,ii:ii+1)
-            qvg_val = this%qv(kk:kk+1,jj:jj+1,ii:ii+1)
+            thetag_val = this%theta(ii:ii+1,jj:jj+1,kk:kk+1)
+            qvg_val = this%qv(ii:ii+1,jj:jj+1,kk:kk+1)
+
         end subroutine get_prec_attribs
 
 

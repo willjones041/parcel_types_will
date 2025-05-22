@@ -18,16 +18,16 @@ module params
     double precision, parameter :: ro_w = 1000
     
     !Grid inputs to find dx and 
-    double precision,  parameter ::lower(3) = [0,0,0]
-    double precision,   parameter :: extent(3) = [100,100,100]
+    double precision,  parameter ::lower(3) = [32,32,32]
+    double precision,   parameter :: extent(3) = [6280,6280,6280]
     integer, parameter :: nx = 10, ny =10, nz=10
-    double precision,   parameter:: dx(3) = extent/dble((/nx,ny,nz/))
+    double precision,   parameter:: dx(3) = extent/dble((/nz,ny,nx/))
     double precision, parameter :: dxi(3) = one/dx
     !Parameters for the atmosphere
     double precision, parameter :: pressure_scale_height = 8619 !From Bomex, please change (placeholder)
     double precision, parameter :: surf_press = 100000
     double precision, parameter :: ref_press = 100000
-     
+   
     ! gas constant of dry air
     double precision, protected :: r_d=287.05
     ![J/(kg*K)] specific heat at constant pressure and dry air:

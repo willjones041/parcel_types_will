@@ -53,4 +53,31 @@ module utils
 
 end subroutine trilinear
 
+
+
+pure subroutine set_atmos(xi,yi,zi,theta_array,qv_array)
+
+integer, intent(in) :: xi,yi,zi
+double precision, intent(out),dimension(:,:,:) :: theta_array, qv_array
+double precision :: epsilon,  RH, theta,press,exn,temp,ws
+integer :: k,j,i
+epsilon = 0.622
+      ! reference pressure in Pa (1000 hPa)     ! Rd / cp
+RH = 0.8            ! example: 80% relative humidity
+theta = 300
+do i = 1, xi
+  do j = 1, yi
+    do k = 1, zi
+    press = surf_press*exp(-zi*dx(3)/pressure_scale_height)
+    exn=(press/ref_press)**(r_d/c_p)
+    temp=theta*exn
+    ws = 3.8/(press*e**(-17.2693882*(temp-273.15)/(temp-35.86))-6.109)
+    theta_array(k,j,i) = theta
+    qv_array(k,j,i) = ws*RH
+    end do
+  end do
+end do
+
+
+end subroutine 
 end module
