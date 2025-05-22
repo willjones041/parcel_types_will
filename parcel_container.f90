@@ -53,7 +53,7 @@ module parcel_container
             procedure :: replace      => base_parcel_replace
             procedure :: pack         => parcel_pack
             procedure :: unpack       => parcel_unpack
-            procedure :: delete       => parcel_delete
+            procedure :: pdelete       => parcel_delete
             procedure(parcel_alloc), deferred :: alloc
             procedure(parcel_dealloc), deferred :: dealloc
             procedure(parcel_resize), deferred :: resize
@@ -608,7 +608,7 @@ module parcel_container
         !   parcel pack algorithm works correctly.
         subroutine parcel_delete(this, pid, n_del)
             class(base_parcel_type), intent(inout) :: this
-            integer,        intent(in)    :: pid(0:)
+            integer,        intent(in)    :: pid(:)
             integer,        intent(in)    :: n_del
             integer                       :: k, l, m
 
@@ -634,6 +634,9 @@ module parcel_container
 
             do while (m <= k)
                 ! invalid parcel; overwrite *pid(m)* with last valid parcel *l*
+                print *, "m = ", m
+                print *, "pid(1) (m = last valid parcel index)= ", pid(m)
+                print *, "localnum =", this%local_num
                 call this%replace(pid(m), l)
 
                 l = l - 1
@@ -643,7 +646,7 @@ module parcel_container
                     l = l - 1
                     k = k - 1
                 enddo
-
+                print *, m
                 ! next invalid
                 m = m + 1
             enddo
@@ -666,9 +669,10 @@ module parcel_container
             class(base_parcel_type),   intent(inout)  :: this
             integer, intent(in) :: n, m
             integer :: j
-
-
+            print *, "n = ", n, "m = ", m
+            print *, "this%attr_num = ", this%attr_num
             do j = 1, this%attr_num
+
                 this%attrib(j)%aptr(n) = this%attrib(j)%aptr(m)
             end do
 

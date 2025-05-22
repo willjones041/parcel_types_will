@@ -49,6 +49,9 @@
             procedure :: resize => prec_parcel_resize
             procedure :: sedimentation
             procedure ::  evaporation
+            procedure goners
+            
+
             ! get_buoyancy added here
     end type
 
@@ -223,6 +226,8 @@
 
         end subroutine prec_parcel_resize
 
+       
+
 
     subroutine sedimentation(this,mesh)
 
@@ -323,27 +328,50 @@
                 !Sink term for rainwater number concentration due to evaporation
                 this%nrevp(n) = this%prevp(n)*(((this%nr(n))/ro_air)/(this%qr(n)))
                 
-                !!DEBUG STEP
-!                 print *, "n = ", n
-! print *, "prevp(n) = ", this%prevp(n)
-! print *, "nrevp(n) = ", this%nrevp(n)
-! print *, "nr(n) = ", this%nr(n)
-! print *, "qr(n) = ", this%qr(n)
-! print *, "ro_air = ", ro_air
-! print *, "vent_r = ", vent_r
-! print *, "ABliq = ", ABliq
-! print *, "theta = ", theta
-! print *, "qv = ", qv
-! print *, "press = ", press
-! print *, "vtemp = ", vtemp
-! print *, "ws = ", ws
-! print *, "exner func =", exn
-                
-
         end do parcel_loop 
 
     
     end subroutine evaporation
     
-
+    subroutine goners(this,rainfall)
+        class(prec_parcel_type), intent(inout) :: this
+        double precision, intent(out) :: rainfall
+        integer, allocatable :: pid(:)  ! Declare pid as an allocatable array
+        integer :: n_del
+        integer :: n
+    
+        n_del = 0
+        allocate(pid(this%local_num))  ! Allocate pid with the size of local_num
+    
+        do n = 1, this%local_num
+            if (this%position(1, n) <= 0) then
+                n_del = n_del + 1
+                pid(n_del) = n
+                print *, "Ping! Parcel impinged"
+                !! Check me I may be wrong
+                rainfall = rainfall + 522*((ro_0/ro_r)*(this%qr(n)/this%nr(n))**(3*f13))
+                
+                cycle
+            else if (this%qr(n) <= 0) then
+                n_del = n_del + 1
+                pid(n_del) = n
+                print *, "Poof! Parcel evaporated"
+                cycle
+            else if (this%nr(n) <= 0) then
+                n_del = n_del + 1
+                pid(n_del) = n
+                print *, "Poof! Parcel evaporated"
+                cycle
+            end if
+        end do
+        
+        if (n_del > 0) then
+            pid = pid(1:n_del)  ! Resize pid to only include the first n_del elements
+            call this%pdelete(pid=pid, n_del=n_del)
+        end if
+        
+        
+    
+        deallocate(pid)  ! Deallocate pid to free memory
+    end subroutine goners
 end module
