@@ -18,9 +18,9 @@ module params
     double precision, parameter :: ro_w = 1000
     
     !Grid inputs to find dx and 
-    double precision,  parameter ::lower(3) = [32,32,32]
-    double precision,   parameter :: extent(3) = [6280,6280,6280]
-    integer, parameter :: nx = 10, ny =10, nz=10
+    double precision,  parameter ::lower(3) = [0,0,0]
+    double precision,   parameter :: extent(3) = [5000,12800,12800]
+    integer, parameter :: nx = 5, ny =5, nz=5
     double precision,   parameter:: dx(3) = extent/dble((/nz,ny,nx/))
     double precision, parameter :: dxi(3) = one/dx
     !Parameters for the atmosphere
@@ -46,8 +46,14 @@ module params
     double precision, parameter :: k_a =0.02623
     !Gas constant for water vapour
     double precision, parameter :: r_v = 461.52
- 
-
+    !shape parameter for the rainwater DSD
+    double precision, parameter :: shape = 2.5
+    ! Switch to turn on rain on rain self collection within parcel DSDs
+    logical, parameter :: aggregation_on = .true.
+    !Option to switch off evaporation
+    logical, parameter :: evaporation_off = .false.
+    ! Collection efficiency rain on rain
+    double precision, parameter :: err = 1.0
 
 
 end module params

@@ -63,7 +63,7 @@ double precision :: epsilon,  RH, theta,press,exn,temp,ws
 integer :: k,j,i
 epsilon = 0.622
       ! reference pressure in Pa (1000 hPa)     ! Rd / cp
-RH = 0.8            ! example: 80% relative humidity
+RH = 0.7            ! example: 80% relative humidity
 theta = 300
 do i = 1, xi
   do j = 1, yi

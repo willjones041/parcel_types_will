@@ -3,7 +3,7 @@
     use parcel_ellipsoid
     use params
     use constants
-    use grid_container, only: Grid
+    use grid_container
     use utils
     implicit none
 
@@ -234,8 +234,7 @@
         class(prec_parcel_type), intent(inout) :: this
         class(Grid), intent(in) :: mesh
         double precision :: D, press, exn,theta, qv, vtemp, ro_air
-        integer :: n, is, js, ks 
-        double precision,dimension(0:1, 0:1, 0:1) :: weights, theta_subarray,qv_subarray
+        integer :: n
 
             parcel_loop: do n = 1, this%local_num
 
@@ -244,13 +243,7 @@
                 !This Could be wrapped up in grid2par
 
             !! ----------------------grid2par---------------------------
-                call trilinear(pos=this%position(1,n),ii=is,jj=js,kk=ks,ww=weights)
-                call mesh%get_attribs(ii=is,jj=js,kk=ks,thetag_val=theta_subarray,qvg_val=qv_subarray)
-                
-                !assigning atmospheric variables on the fly
-                theta = sum(theta_subarray*weights)
-                
-                qv = sum(qv_subarray*weights)
+                call mesh%grid2par(position=this%position(:, n), theta=theta, qv=qv)
                 press=surf_press*exp(-this%position(1, n)/pressure_scale_height)
                 exn=(press/ref_press)**(r_d/c_p)
                 vtemp=theta*exn*(1+0.61*qv)
@@ -259,7 +252,7 @@
                 
                 !! Approximate diameter scaling from Rooney 2025
                 D = ((ro_air/ro_w)*(this%qr(n)/this%nr(n)))**(f13)
-
+                
                
                 this%vterm(n) =  (a1*(D**(b1))*(exp(-f1*D)))+a2*(D**(b2)) &
                 &* (exp(-f2*D))*(ro_0/ro_air)**(f12)
@@ -283,10 +276,10 @@
 
     subroutine evaporation(this,mesh)
         class(prec_parcel_type), intent(inout) :: this
-        class(Grid), intent(in) :: mesh
-        double precision :: press, exn,theta, qv, vtemp, ro_air, shape, slope, vent_r,abliq,ws
-        integer :: n, is, js, ks 
-        double precision,dimension(0:1, 0:1, 0:1) :: weights, theta_subarray,qv_subarray
+        class(Grid), intent(inout) :: mesh
+        double precision :: press, exn,theta, qv, vtemp, ro_air, slope, vent_r,abliq,ws
+        double precision :: evap_mass, evap_heat
+        integer :: n
 
 
 
@@ -295,12 +288,7 @@
                 !Here I believe we will call trilinear and par2grid to get 
                 !the theta and qv values we need to make the parcel fall
                 !This Could be wrapped up in grid2par
-                call trilinear(pos=this%position(1,n),ii=is,jj=js,kk=ks,ww=weights)
-                call mesh%get_attribs(ii=is,jj=js,kk=ks,thetag_val=theta_subarray,qvg_val=qv_subarray)
-        
-                !assigning atmospheric variables on the fly
-                theta = sum(theta_subarray*weights)
-                qv = sum(qv_subarray*weights)
+                call mesh%grid2par(position=this%position(:, n), theta=theta, qv=qv)
                 press=surf_press*exp(-this%position(1, n)/pressure_scale_height)
                 exn=(press/ref_press)**(r_d/c_p)
                 
@@ -310,8 +298,6 @@
         
                 !Calculating slope coefficient 
                 slope = ((pi/6)*(ro_r/ro_air)*(this%nr(n)/this%qr(n))*(shape+1)*(shape+2)*(shape+3))**((f13))
-
-                !Ventilation coefficient
                 
                 vent_r = two*pi*(this%nr(n))*ro_air* &
                     (0.78*((one+shape)/(slope)) &
@@ -324,13 +310,24 @@
                 abliq = ((l_v**2)/(k_a*r_v* (vtemp**2))) + (1/(ro_air*ws*diffus))
                 
                 !Sink term for rainwater mass mixing ratio due to evaporation
-                this%prevp(n) = (((qv/ws)-1)/(ro_air*ABliq))*vent_r
+                evap_mass = -(((qv/ws)-1)/(ro_air*ABliq))*vent_r
+                evap_heat = evap_mass*(l_v/(c_p*exn))
+                call mesh%par2grid(position=this%position(:,n),evap_mass=evap_mass,evap_heat=evap_heat)
+                if (evaporation_off .eqv. .true.) then
+                    this%prevp = 0
+                else 
+                    this%prevp(n) = (((qv/ws)-1)/(ro_air*ABliq))*vent_r
+                end if 
                 !Sink term for rainwater number concentration due to evaporation
-                this%nrevp(n) = this%prevp(n)*(((this%nr(n))/ro_air)/(this%qr(n)))
+                !!Here I have added a switch for rain on rain aggregation 
+                if (aggregation_on .eqv. .true.) then 
+                    this%nrevp(n) = this%prevp(n)*(((this%nr(n))/ro_air)/(this%qr(n))) - 8*err*this%qr(n)*(this%nr(n))
+                else 
+                    this%nrevp(n) = this%prevp(n)*(((this%nr(n))/ro_air)/(this%qr(n)))
+                end if 
                 
         end do parcel_loop 
 
-    
     end subroutine evaporation
     
     subroutine goners(this,rainfall)
@@ -369,9 +366,8 @@
             pid = pid(1:n_del)  ! Resize pid to only include the first n_del elements
             call this%pdelete(pid=pid, n_del=n_del)
         end if
-        
-        
-    
         deallocate(pid)  ! Deallocate pid to free memory
     end subroutine goners
+
+
 end module

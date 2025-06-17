@@ -58,6 +58,7 @@ module parcel_container
             procedure(parcel_dealloc), deferred :: dealloc
             procedure(parcel_resize), deferred :: resize
             procedure :: print_me
+            procedure :: write_csv
             procedure :: set_dimension
             procedure :: register_attribute
             procedure :: register_int_attribute
@@ -173,7 +174,7 @@ module parcel_container
                 stop
             endif
 
-            dir = (/'x', 'y', 'z'/)
+            dir = (/'z', 'y', 'x'/)
 
             allocate(this%position(this%n_pos, num))
             allocate(this%delta_pos(this%n_pos, num))
@@ -702,5 +703,39 @@ module parcel_container
             end do
 
         end subroutine print_me
+
+        subroutine write_csv(this, unit, t, meta_data)
+            class(base_parcel_type), intent(in) :: this
+            integer, intent(in) :: unit
+            double precision, intent(in) :: t  ! time stamp
+            logical, intent(in), optional :: meta_data
+            integer :: j 
+
+            if (present(meta_data)) then
+                
+                write(unit, '(A)', advance='no') trim('Time')
+                write(unit, '(A)', advance='no') ', '
+
+                do j = 1, this%attr_num 
+                
+                    write(unit, '(A)', advance='no') trim(this%attrib(j)%name)
+                    if (j /= this%attr_num) write(unit, '(A)', advance='no') ', '
+                    
+                end do 
+            
+            else
+                write(unit, '(F8.2)', advance='no') t
+                write(unit, '(A)', advance='no') ', '
+                do j = 1, this%attr_num
+                    
+                    write(unit, '(F20.10)', advance='no') this%attrib(j)%aptr
+                    if (j /= this%attr_num) write(unit, '(A)', advance='no') ', '
+                end do 
+            end if
+        end subroutine write_csv
+            
+            
+            
+          
 
 end module
