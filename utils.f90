@@ -55,29 +55,41 @@ end subroutine trilinear
 
 
 
-pure subroutine set_atmos(xi,yi,zi,theta_array,qv_array)
+subroutine set_atmos(xi,yi,zi,theta_array,qv_array,RH,theta)
 
 integer, intent(in) :: xi,yi,zi
 double precision, intent(out),dimension(:,:,:) :: theta_array, qv_array
-double precision :: epsilon,  RH, theta,press,exn,temp,ws
+double precision, dimension(zi,yi,xi) :: press_array, temp_array, ws_array
+double precision, intent(in) :: RH, theta
+double precision :: epsilon,press,exn,temp,ws
 integer :: k,j,i
 epsilon = 0.622
       ! reference pressure in Pa (1000 hPa)     ! Rd / cp
-RH = 0.7            ! example: 80% relative humidity
-theta = 300
+
 do i = 1, xi
   do j = 1, yi
     do k = 1, zi
-    press = surf_press*exp(-zi*dx(3)/pressure_scale_height)
+    press = surf_press*exp(-k*dx(3)/pressure_scale_height)
     exn=(press/ref_press)**(r_d/c_p)
     temp=theta*exn
-    ws = 3.8/(press*e**(-17.2693882*(temp-273.15)/(temp-35.86))-6.109)
+    ws = 3.8/((0.01*press)*exp(-17.2693882*(temp-273.15)/(temp-35.86))-6.109)
     theta_array(k,j,i) = theta
     qv_array(k,j,i) = ws*RH
+    press_array(k,j,i) = press
+    temp_array(k,j,i) = temp
+    ws_array(k,j,i) = ws
     end do
   end do
 end do
-
+! Plot the k component of qv_array against k*dx(3)
+open(unit=10, file='atmos_profile.dat', status='replace')
+write(10,*) '# Height(m)   Pressure(Pa)   Temperature(K)   Saturation_specific_humidity(kg/kg)  &
+ &Potential_temperature(K)   Specific_humdity(kg/kg)   Relative_humidity'
+do k = 1, zi
+  write(10,*) k*dx(3), press_array(k,1,1), temp_array(k,1,1), ws_array(k,1,1), &
+  theta_array(k,1,1), qv_array(k,1,1), qv_array(k,1,1)/ws_array(k,1,1)
+end do
+close(10)
 
 end subroutine 
 end module

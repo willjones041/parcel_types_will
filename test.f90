@@ -11,15 +11,17 @@ implicit none
         
         double precision, allocatable, dimension(:,:,:) :: theta_init, qv_init
         integer ::  n
-        double precision :: rainfall
+        double precision :: rainfall,RH,theta,nr_init,qr_init
         double precision :: delt,tlim,t
         logical :: meta_data = .true.
-        
+        character(len=100) :: filename
         t = 0
         delt = 0.1
         tlim = 1000
-
-        
+        RH = 0.7  ! example: 70% relative humidity
+        theta = 300.0  ! example: 300 K
+        qr_init = 0.001  ! initial rain mixing ratio
+        nr_init = 60000  ! initial number concentration of rain droplets
 
         ! Allocate and initialize the grid
         call testgrid%alloc()
@@ -28,7 +30,7 @@ implicit none
         allocate(theta_init(nz, ny, nx))
         allocate(qv_init(nz, ny, nx))
         !---------------------------------------------------------------------------
-        call set_atmos(xi=nx,yi=ny,zi=nz,theta_array = theta_init,qv_array=qv_init)
+        call set_atmos(xi=nx,yi=ny,zi=nz,theta_array = theta_init,qv_array=qv_init,rh=rh,theta=theta)
         !--------------------------This needs to be a call to a subroutine ---------
         ! Set the fields in the grid
         call testgrid%set_fields(theta_init, qv_init)
@@ -39,13 +41,13 @@ implicit none
 
         call prec_parcels%set_dimension(3)
         call prec_parcels%alloc(1)
-        call testgrid%print_me()
+        
 
         ! Set the initial position of the parcels
         
         ! Set the parcel microphysical properties
-        prec_parcels%qr = 0.001
-        prec_parcels%nr = 60000
+        prec_parcels%qr = qr_init
+        prec_parcels%nr = nr_init
         
         prec_parcels%position(1,:) = [3000]
         prec_parcels%position(2,:) = extent(2)/2
@@ -53,7 +55,11 @@ implicit none
         rainfall = 0
         !testing the metadata writing!
         !-----------------------------
-        open(unit=10,file="filename.csv")
+    
+
+        print *, "Enter output filename (e.g., output.csv):"
+        read(*,'(A)') filename
+        open(unit=10,file=filename)
         call prec_parcels%write_csv(10,meta_data=meta_data,t=t)
         close(10)
         !-----------------------------
@@ -74,7 +80,7 @@ implicit none
             !Removing impinged and evaporated parcels
             call prec_parcels%goners(rainfall)
             !write to file
-            open(unit=10,file="filename.csv",status='old',position='append')
+            open(unit=10,file=filename,status='old',position='append')
             
             call prec_parcels%write_csv(10,t=t)
 
@@ -83,7 +89,7 @@ implicit none
             t = t+delt
             
         end do 
-        call testgrid%print_me()
+        
         call prec_parcels%dealloc
     
 end program

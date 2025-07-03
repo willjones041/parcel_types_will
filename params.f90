@@ -19,8 +19,8 @@ module params
     
     !Grid inputs to find dx and 
     double precision,  parameter ::lower(3) = [0,0,0]
-    double precision,   parameter :: extent(3) = [5000,12800,12800]
-    integer, parameter :: nx = 5, ny =5, nz=5
+    double precision,   parameter :: extent(3) = [5000,5000,5000]
+    integer, parameter :: nx = 32, ny =32, nz=32
     double precision,   parameter:: dx(3) = extent/dble((/nz,ny,nx/))
     double precision, parameter :: dxi(3) = one/dx
     !Parameters for the atmosphere
@@ -52,7 +52,8 @@ module params
     logical, parameter :: aggregation_on = .true.
     !Option to switch off evaporation
     logical, parameter :: evaporation_off = .false.
-    ! Collection efficiency rain on rain
+    
+     !Collection efficiency rain on rain
     double precision, parameter :: err = 1.0
 
 

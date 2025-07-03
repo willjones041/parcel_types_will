@@ -294,8 +294,8 @@
                 
                 vtemp=theta*exn*(1+0.61*qv)
                 ro_air = press/(r_d*vtemp)
-                ws = 3.8/(press*e**(-17.2693882*(vtemp-273.15)/(vtemp-35.86))-6.109)
-        
+                ws = 3.8/(0.01*press*e**(-17.2693882*(vtemp-273.15)/(vtemp-35.86))-6.109)
+
                 !Calculating slope coefficient 
                 slope = ((pi/6)*(ro_r/ro_air)*(this%nr(n)/this%qr(n))*(shape+1)*(shape+2)*(shape+3))**((f13))
                 
@@ -312,7 +312,7 @@
                 !Sink term for rainwater mass mixing ratio due to evaporation
                 evap_mass = -(((qv/ws)-1)/(ro_air*ABliq))*vent_r
                 evap_heat = evap_mass*(l_v/(c_p*exn))
-                call mesh%par2grid(position=this%position(:,n),evap_mass=evap_mass,evap_heat=evap_heat)
+                !call mesh%par2grid(position=this%position(:,n),evap_mass=evap_mass,evap_heat=evap_heat)
                 if (evaporation_off .eqv. .true.) then
                     this%prevp = 0
                 else 
