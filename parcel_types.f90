@@ -233,7 +233,7 @@
 
         class(prec_parcel_type), intent(inout) :: this
         class(Grid), intent(in) :: mesh
-        double precision :: D, press, exn,theta, qv, vtemp, ro_air
+        double precision :: D, press, exn,theta, qv, temp, ro_air
         integer :: n
 
             parcel_loop: do n = 1, this%local_num
@@ -246,8 +246,8 @@
                 call mesh%grid2par(position=this%position(:, n), theta=theta, qv=qv)
                 press=surf_press*exp(-this%position(1, n)/pressure_scale_height)
                 exn=(press/ref_press)**(r_d/c_p)
-                vtemp=theta*exn*(1+0.61*qv)
-                ro_air = press/(r_d*vtemp)
+                temp=theta*exn
+                ro_air = press/(r_d*temp)
                 !! ----------------------------------------------------
                 
                 !! Approximate diameter scaling from Rooney 2025
@@ -264,7 +264,7 @@
                 exn = 0.0
                 theta = 0.0
                 qv = 0.0
-                vtemp = 0.0
+                temp = 0.0
                 ro_air = 0.0
 
 
@@ -277,7 +277,7 @@
     subroutine evaporation(this,mesh)
         class(prec_parcel_type), intent(inout) :: this
         class(Grid), intent(inout) :: mesh
-        double precision :: press, exn,theta, qv, vtemp, ro_air, slope, vent_r,abliq,ws
+        double precision :: press, exn,theta, qv, temp, ro_air, slope, vent_r,abliq,ws
         double precision :: evap_mass, evap_heat
         integer :: n
 
@@ -292,9 +292,9 @@
                 press=surf_press*exp(-this%position(1, n)/pressure_scale_height)
                 exn=(press/ref_press)**(r_d/c_p)
                 
-                vtemp=theta*exn*(1+0.61*qv)
-                ro_air = press/(r_d*vtemp)
-                ws = 3.8/(0.01*press*e**(-17.2693882*(vtemp-273.15)/(vtemp-35.86))-6.109)
+                temp=theta*exn
+                ro_air = press/(r_d*temp)
+                ws = 3.8/(0.01*press*e**(-17.2693882*(temp-273.15)/(temp-35.86))-6.109)
 
                 !Calculating slope coefficient 
                 slope = ((pi/6)*(ro_r/ro_air)*(this%nr(n)/this%qr(n))*(shape+1)*(shape+2)*(shape+3))**((f13))
@@ -307,7 +307,7 @@
                     *((slope)**(-f12*b1 -f32)))
 
                 !Thermodynamic coefficient
-                abliq = ((l_v**2)/(k_a*r_v* (vtemp**2))) + (1/(ro_air*ws*diffus))
+                abliq = ((l_v**2)/(k_a*r_v* (temp**2))) + (1/(ro_air*ws*diffus))
                 
                 !Sink term for rainwater mass mixing ratio due to evaporation
                 evap_mass = -(((qv/ws)-1)/(ro_air*ABliq))*vent_r
